@@ -1,0 +1,60 @@
+import os
+import pandas as pd
+import qrcode
+from google.colab import drive, files
+from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas
+
+# 1. Montar o Google Drive
+drive.mount('/content/drive')
+
+# 2. ENDEREÇO DO TEU ARQUIVO NO GOOGLE DRIVE (Ajusta se o nome for diferente)
+caminho_excel = '/content/drive/MyDrive/wmsss.xlsx'
+
+# 3. Ler o Excel
+df = pd.read_excel(caminho_excel)
+coluna_conteudo = df.columns[0] # Pega a primeira coluna
+
+# CONFIGURAÇÕES DA ETIQUETA ARGOX
+LARGURA_ETIQUETA = 101.6 * mm
+ALTURA_ETIQUETA = 25.4 * mm
+ARQUIVO_PDF_SAIDA = "Etiquetas_Argox_Prontas.pdf"
+
+c = canvas.Canvas(ARQUIVO_PDF_SAIDA, pagesize=(LARGURA_ETIQUETA, ALTURA_ETIQUETA))
+pasta_temp = "temp_qrcodes"
+os.makedirs(pasta_temp, exist_ok=True)
+
+total_etiquetas = 0
+
+for index, linha in df.iterrows():
+    valor = str(linha[coluna_conteudo]).strip()
+    if not valor or valor == "nan":
+        continue
+
+    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=0)
+    qr.add_data(valor)
+    qr.make(fit=True)
+
+    img_qr = qr.make_image(fill_color="black", back_color="white")
+    caminho_qr = os.path.join(pasta_temp, f"qr_{index}.png")
+    img_qr.save(caminho_qr)
+
+    # Layout da etiqueta (21.8mm x 21.8mm)
+    c.drawImage(caminho_qr, 2 * mm, 1.8 * mm, width=21.8 * mm, height=21.8 * mm)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(26 * mm, 15 * mm, f"CÓDIGO: {valor[:25]}")
+
+    c.showPage()
+    total_etiquetas += 1
+
+c.save()
+
+# Limpar temporários
+for f in os.listdir(pasta_temp):
+    os.remove(os.path.join(pasta_temp, f))
+os.rmdir(pasta_temp)
+
+print(f"\nSucesso! {total_etiquetas} etiquetas geradas.")
+
+# Descarrega o PDF para o computador
+files.download(ARQUIVO_PDF_SAIDA)
